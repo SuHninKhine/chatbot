@@ -3,7 +3,7 @@ from openai import OpenAI
 from datetime import date
 
 # =========================================================
-# ✅ API Setup (same as before)
+# ✅ API Setup
 # =========================================================
 API_KEY = st.secrets.get("OPENROUTER_API_KEY")
 if not API_KEY:
@@ -17,7 +17,7 @@ client = OpenAI(api_key=API_KEY, base_url="https://openrouter.ai/api/v1")
 # =========================================================
 st.set_page_config(page_title="💬 AI Therapist", page_icon="🧠")
 st.title("🧠 AI Therapist")
-st.markdown("> A safe, non-judgmental space to listen, support, and guide you gently.")
+st.markdown("> A safe, non-judgmental space to listen, support, guide, and help you understand therapy approaches.")
 
 # =========================================================
 # ✅ Session State Initialization
@@ -34,23 +34,24 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 # =========================================================
-# ✅ Build System Prompt
+# ✅ Build System Prompt (Updated)
 # =========================================================
 def build_system_prompt(profile):
     base_prompt = (
-        "You are a warm, empathetic, and supportive AI therapist, skilled in active listening, "
-        "reflective questioning, and goal-oriented encouragement. "
-        "You use supportive listening first before offering strategies, "
-        "and you never provide a diagnosis. Always consider the user's name, gender, "
-        "date of birth, and personal goal for therapy when crafting responses.\n\n"
+        "You are a warm, empathetic, and supportive AI therapist. "
+        "You specialise in supportive listening first, then gentle, educational guidance. "
+        "You know and can clearly explain different counselling approaches with real-life examples: "
+        "Cognitive Behavioral Therapy (CBT), Person-Centered, Psychodynamic, Solution-Focused, Gestalt, Narrative, and Integrative. "
+        "When relevant, you decide and explain which therapy may be beneficial based on the user's situation. \n\n"
 
         "Conversation rules:\n"
-        "- Always validate the user's feelings first.\n"
-        "- Offer gentle, non-judgmental reflection.\n"
-        "- Provide practical coping steps only when appropriate.\n"
-        "- If the user expresses severe distress or suicidal thoughts, advise them to "
-        "contact an appropriate crisis hotline immediately.\n"
-        "- At the end of the session or on request, provide a session review with actionable steps.\n"
+        "- Always validate the user's feelings before giving advice.\n"
+        "- Provide gentle, non-judgmental reflection.\n"
+        "- If asked about therapy methods, give clear examples and explain benefits.\n"
+        "- If user asks 'which therapy fits me', walk them through how counsellors decide this in real-world practice.\n"
+        "- For complex emotional challenges, break advice into small steps.\n"
+        "- If severe distress is expressed, advise them to contact a crisis hotline immediately.\n"
+        "- If user types 'summary' or 'end session', summarise session key points and give actionable suggestions.\n"
     )
 
     additions = []
@@ -64,7 +65,6 @@ def build_system_prompt(profile):
         additions.append(f"Their main goal for therapy is: {profile['goal']}.")
 
     return base_prompt + " " + " ".join(additions)
-
 
 # =========================================================
 # ✅ Onboarding Questions
@@ -115,9 +115,8 @@ if not st.session_state.get("intro_message_shown"):
     goal = st.session_state.user_profile["goal"]
 
     intro_message = (
-        f"{name}, I’m glad you’re here. I understand your main goal is **{goal.lower()}**.\n\n"
-        "Let’s take things step-by-step. There's no rush — I’m here to listen first.\n\n"
-        "To begin, could you share what’s been on your mind lately?"
+        f"{name}, I’m glad you’re here. Your main goal is **{goal.lower()}**.\n\n"
+        "Let's start gently. Could you share what’s been on your mind lately?"
     )
 
     st.session_state.chat_history.append({"role": "assistant", "content": intro_message})
@@ -148,17 +147,30 @@ for message in st.session_state.chat_history[1:]:
         st.chat_message("user").write(message["content"])
 
 # =========================================================
-# ✅ AI Call
+# ✅ AI Call with Summary Command
 # =========================================================
 def ask_ai(user_message, history):
     try:
-        response = client.chat.completions.create(
-            model="meta-llama/llama-3-70b-instruct",
-            messages=history,
-            max_tokens=800,
-            temperature=0.4,
-        )
-        ai_reply = response.choices[0].message.content.strip()
+        # Handle summary request
+        if user_message.strip().lower() in ["summary", "end session"]:
+            summary_prompt = history + [
+                {"role": "user", "content": "Please write a session summary with key points discussed and actionable steps I can take."}
+            ]
+            response = client.chat.completions.create(
+                model="meta-llama/llama-3-70b-instruct",
+                messages=summary_prompt,
+                max_tokens=500,
+                temperature=0.4,
+            )
+            ai_reply = response.choices[0].message.content.strip()
+        else:
+            response = client.chat.completions.create(
+                model="meta-llama/llama-3-70b-instruct",
+                messages=history,
+                max_tokens=800,
+                temperature=0.4,
+            )
+            ai_reply = response.choices[0].message.content.strip()
         
         history.append({"role": "assistant", "content": ai_reply})
         return ai_reply, history
